@@ -1,12 +1,17 @@
 plugins {
-	kotlin("jvm") version "2.4.21"
-	kotlin("plugin.spring") version "2.4.21"
-	id("org.springframework.boot") version "4.2.0"
-	id("io.spring.dependency-management") version "1.1.7"
+	alias(libs.plugins.kotlinJvm)
+	alias(libs.plugins.kotlinSpring)
+	alias(libs.plugins.springBoot)
+	alias(libs.plugins.springDependencyManagement)
+	alias(libs.plugins.detekt)
 }
 
-group = "com.example"
+group = "pt.simplebooking"
 version = "0.0.1-SNAPSHOT"
+
+base {
+	archivesName.set("simplebooking-backend")
+}
 
 java {
 	toolchain {
@@ -20,8 +25,8 @@ repositories {
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
-	implementation("org.jetbrains.kotlin:kotlin-reflect")
-	implementation("tools.jackson.module:jackson-module-kotlin")
+	implementation(libs.kotlinReflect)
+	implementation(libs.jacksonKotlin)
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")

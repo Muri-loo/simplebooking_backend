@@ -1,0 +1,16 @@
+[versions]
+kotlin = "2.4.10"
+springBoot = "4.2.0"
+springDependencyManagement = "1.1.7"
+detekt = "2.0.0-alpha.6"
+
+[libraries]
+kotlinReflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+jacksonKotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
+
+[plugins]
+kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlinSpring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+springBoot = { id = "org.springframework.boot", version.ref = "springBoot" }
+springDependencyManagement = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }
+detekt = { id = "dev.detekt", version.ref = "detekt" }
