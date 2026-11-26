@@ -24,9 +24,12 @@ repositories {
 }
 
 dependencies {
-	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	implementation(libs.firebaseAdmin)
 	implementation(libs.kotlinReflect)
 	implementation(libs.jacksonKotlin)
+	implementation(libs.guava)
+	implementation(libs.commonsCodec)
+	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
