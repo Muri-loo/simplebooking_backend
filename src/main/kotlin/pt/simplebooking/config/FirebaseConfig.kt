@@ -6,17 +6,24 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.cloud.FirestoreClient
 import com.google.cloud.firestore.Firestore
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 @Configuration
-class FirebaseConfig {
+class FirebaseConfig(
+    @Value("\${app.firebase.project-id}")
+    private val projectId: String
+) {
+
+    private val logger = AppLogger.getLogger(FirebaseConfig::class.java)
 
     @Bean(destroyMethod = "delete")
     fun firebaseApp(): FirebaseApp {
+        logger.info("Firebase project ID: {}", projectId)
         val options = FirebaseOptions.builder()
             .setCredentials(GoogleCredentials.getApplicationDefault())
-            .setProjectId("barbershopbooking-ff17d")
+            .setProjectId(projectId)
             .build()
 
         return FirebaseApp.initializeApp(options)
