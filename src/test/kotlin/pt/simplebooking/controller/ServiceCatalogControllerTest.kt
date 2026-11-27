@@ -9,8 +9,11 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
+import pt.simplebooking.error.GlobalExceptionHandler
+import pt.simplebooking.service.FirebaseTokenService
 import pt.simplebooking.service.ServiceCatalogService
 
 class ServiceCatalogControllerTest {
@@ -19,15 +22,18 @@ class ServiceCatalogControllerTest {
     private lateinit var mockMvc: MockMvc
 
     private val mockServiceCatalogService = mockk<ServiceCatalogService>()
+    private val firebaseTokenService = FirebaseTokenService(mockk(relaxed = true))
 
     @BeforeEach
     fun setup() {
         controller = ServiceCatalogController(
-            serviceCatalogService = mockServiceCatalogService
+            serviceCatalogService = mockServiceCatalogService,
+            firebaseTokenService = firebaseTokenService
         )
 
         mockMvc = MockMvcBuilders
             .standaloneSetup(controller)
+            .setControllerAdvice(GlobalExceptionHandler())
             .build()
     }
 
@@ -54,7 +60,7 @@ class ServiceCatalogControllerTest {
     }
 
     @Test
-    fun shouldReturnBadRequestWhenAuthorizationHeaderIsNotBearer() {
+    fun shouldReturnBadRequestWithErrorBodyWhenAuthorizationHeaderIsNotBearer() {
         // Arrange
         val serviceId = "service-123"
 
@@ -64,6 +70,35 @@ class ServiceCatalogControllerTest {
                 .header("Authorization", "Invalid token")
         )
             .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(
+                jsonPath("$.message")
+                    .value("Authorization header must use the 'Bearer' scheme")
+            )
+            .andExpect(jsonPath("$.trace").doesNotExist())
+
+        verify(exactly = 0) {
+            mockServiceCatalogService.deleteServiceCatalog(any(), any())
+        }
+    }
+
+    @Test
+    fun shouldReturnBadRequestWithErrorBodyWhenBearerTokenIsMissing() {
+        // Arrange
+        val serviceId = "service-123"
+
+        // Act & Assert
+        mockMvc.perform(
+            delete("/service-catalog/$serviceId")
+                .header("Authorization", "Bearer   ")
+        )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(
+                jsonPath("$.message")
+                    .value("Authorization header is missing the bearer token")
+            )
+            .andExpect(jsonPath("$.trace").doesNotExist())
 
         verify(exactly = 0) {
             mockServiceCatalogService.deleteServiceCatalog(any(), any())

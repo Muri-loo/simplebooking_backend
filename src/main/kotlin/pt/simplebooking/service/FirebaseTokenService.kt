@@ -12,6 +12,26 @@ class FirebaseTokenService(
     private val firebaseAuth: FirebaseAuth
 ) {
 
+    fun extractBearerToken(authHeader: String): String {
+        if (!authHeader.startsWith(BEARER_PREFIX, ignoreCase = true)) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Authorization header must use the 'Bearer' scheme"
+            )
+        }
+
+        val idToken = authHeader.substring(BEARER_PREFIX.length).trim()
+
+        if (idToken.isEmpty()) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Authorization header is missing the bearer token"
+            )
+        }
+
+        return idToken
+    }
+
     fun verifyToken(idToken: String): FirebaseToken {
         return try {
             firebaseAuth.verifyIdToken(idToken)
@@ -53,5 +73,9 @@ class FirebaseTokenService(
                 "User does not own this business"
             )
         }
+    }
+
+    private companion object {
+        const val BEARER_PREFIX = "Bearer "
     }
 }
