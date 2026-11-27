@@ -20,8 +20,11 @@ import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpStatus
+import org.springframework.web.server.ResponseStatusException
 import pt.simplebooking.config.Firestore
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class ServiceCatalogServiceTest {
@@ -108,6 +111,87 @@ class ServiceCatalogServiceTest {
 
         verify(exactly = 1) {
             transaction.update(catalogReference, any<Map<String, Any>>())
+        }
+    }
+
+    @Test
+    fun shouldRejectDeletionWhenTokenIsInvalid() {
+        // Arrange
+        every {
+            mockFirebaseTokenService.verifyToken(INVALID_TOKEN)
+        } throws ResponseStatusException(
+            HttpStatus.UNAUTHORIZED,
+            "Invalid Firebase ID token"
+        )
+
+        // Act
+        val ex = assertFailsWith<ResponseStatusException> {
+            service.deleteServiceCatalog(
+                serviceId = SERVICE_ID_TO_DELETE,
+                idToken = INVALID_TOKEN
+            )
+        }
+
+        // Assert
+        assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
+        verify(exactly = 0) {
+            transaction.update(any(), any<Map<String, Any>>())
+        }
+    }
+
+    @Test
+    fun shouldRejectDeletionWhenAdminClaimIsMissingOrFalse() {
+        // Arrange
+        every {
+            mockFirebaseTokenService.verifyAdminRole(mockDecodedToken)
+        } throws ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "User does not have admin privileges"
+        )
+
+        // Act
+        val ex = assertFailsWith<ResponseStatusException> {
+            service.deleteServiceCatalog(
+                serviceId = SERVICE_ID_TO_DELETE,
+                idToken = VALID_TOKEN
+            )
+        }
+
+        // Assert
+        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+        verify(exactly = 0) {
+            mockFirebaseTokenService.verifyBusinessOwnership(any(), any())
+        }
+        verify(exactly = 0) {
+            transaction.update(any(), any<Map<String, Any>>())
+        }
+    }
+
+    @Test
+    fun shouldRejectDeletionWhenBusinessOwnershipDoesNotMatch() {
+        // Arrange
+        every {
+            mockFirebaseTokenService.verifyBusinessOwnership(
+                mockDecodedToken,
+                BUSINESS_ID
+            )
+        } throws ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "User does not own this business"
+        )
+
+        // Act
+        val ex = assertFailsWith<ResponseStatusException> {
+            service.deleteServiceCatalog(
+                serviceId = SERVICE_ID_TO_DELETE,
+                idToken = VALID_TOKEN
+            )
+        }
+
+        // Assert
+        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+        verify(exactly = 0) {
+            transaction.update(any(), any<Map<String, Any>>())
         }
     }
 
@@ -204,5 +288,6 @@ class ServiceCatalogServiceTest {
         const val USER_ID = "user-123"
         const val SERVICE_ID_TO_DELETE = "service-1"
         const val VALID_TOKEN = "valid-token"
+        const val INVALID_TOKEN = "invalid-token"
     }
 }

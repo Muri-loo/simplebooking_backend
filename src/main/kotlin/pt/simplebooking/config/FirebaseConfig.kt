@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 class FirebaseConfig {
 
-    @Bean
+    @Bean(destroyMethod = "delete")
     fun firebaseApp(): FirebaseApp {
         val options = FirebaseOptions.builder()
             .setCredentials(GoogleCredentials.getApplicationDefault())

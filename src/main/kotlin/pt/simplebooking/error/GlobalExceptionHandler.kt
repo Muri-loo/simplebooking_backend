@@ -1,6 +1,7 @@
 package pt.simplebooking.error
 
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.ResponseEntity
@@ -42,6 +43,7 @@ class GlobalExceptionHandler {
 
         return ResponseEntity
             .status(status)
+            .headers(resolveHeaders(cause))
             .body(
                 ApiError(
                     timestamp = Instant.now(),
@@ -89,6 +91,14 @@ class GlobalExceptionHandler {
         }
 
         return cause
+    }
+
+    private fun resolveHeaders(cause: Throwable): HttpHeaders {
+        return when (cause) {
+            is ResponseStatusException -> cause.headers
+            is ErrorResponse -> cause.headers
+            else -> HttpHeaders()
+        }
     }
 
     private fun resolveStatus(cause: Throwable): HttpStatus {
