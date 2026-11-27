@@ -16,7 +16,9 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.optio
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
-@SpringBootTest
+@SpringBootTest(
+    properties = ["app.cors.allowed-origins=http://localhost:5173"]
+)
 @AutoConfigureMockMvc
 class SimpleBookingApplicationTests {
 

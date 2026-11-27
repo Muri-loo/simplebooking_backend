@@ -1,116 +1,69 @@
 
 package pt.simplebooking.service
 
-import com.google.api.core.ApiFuture
-import com.google.cloud.firestore.CollectionReference
-import com.google.cloud.firestore.DocumentReference
-import com.google.cloud.firestore.DocumentSnapshot
-import com.google.cloud.firestore.FieldValue
-import com.google.cloud.firestore.Firestore as FirestoreClient
-import com.google.cloud.firestore.Query
-import com.google.cloud.firestore.QueryDocumentSnapshot
-import com.google.cloud.firestore.QuerySnapshot
-import com.google.cloud.firestore.Transaction
 import com.google.firebase.auth.FirebaseToken
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
-import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
-import pt.simplebooking.config.Firestore
+import pt.simplebooking.models.bo.BookableResource
+import pt.simplebooking.repository.BookableResourceRepository
+import pt.simplebooking.repository.RemoveServiceResult
+import pt.simplebooking.repository.ServiceCatalogRepository
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertTrue
 
 class ServiceCatalogServiceTest {
 
     private lateinit var service: ServiceCatalogService
 
     private val mockFirebaseTokenService = mockk<FirebaseTokenService>(relaxed = true)
-    private val mockFirestore = mockk<FirestoreClient>()
+    private val mockBookableResourceRepository = mockk<BookableResourceRepository>()
+    private val mockServiceCatalogRepository = mockk<ServiceCatalogRepository>()
     private val mockDecodedToken = mockk<FirebaseToken>()
-
-    private val resourceCollection = mockk<CollectionReference>()
-    private val resourceQuery = mockk<Query>()
-    private val resourceFuture = mockk<ApiFuture<QuerySnapshot>>()
-    private val resourceSnapshot = mockk<QuerySnapshot>()
-    private val resourceDocument = mockk<QueryDocumentSnapshot>()
-
-    private val catalogCollection = mockk<CollectionReference>()
-    private val catalogReference = mockk<DocumentReference>()
-    private val catalogFuture = mockk<ApiFuture<DocumentSnapshot>>()
-    private val catalogSnapshot = mockk<DocumentSnapshot>()
-
-    private val transaction = mockk<Transaction>()
-    private val transactionFuture = mockk<ApiFuture<Transaction>>()
-    private val updateFields = slot<Map<String, Any>>()
-
-    private val existingServices = listOf(
-        mapOf<String, Any>(
-            "id" to "service-1",
-            "name" to "Haircut",
-            "price" to 13
-        ),
-        mapOf<String, Any>(
-            "id" to "service-2",
-            "name" to "Beard",
-            "price" to 8
-        )
-    )
-
-    private val expectedServices = listOf(
-        mapOf<String, Any>(
-            "id" to "service-2",
-            "name" to "Beard",
-            "price" to 8
-        )
-    )
 
     @BeforeEach
     fun setup() {
         service = ServiceCatalogService(
             firebaseTokenService = mockFirebaseTokenService,
-            firestore = mockFirestore
+            bookableResourceRepository = mockBookableResourceRepository,
+            serviceCatalogRepository = mockServiceCatalogRepository
         )
 
         mockAuthentication()
-        mockBookableResourceLookup()
-        mockServiceCatalogLookup()
-        mockTransaction()
+
+        every {
+            mockBookableResourceRepository.findByUid(USER_ID)
+        } returns BookableResource(businessId = BUSINESS_ID)
+
+        every {
+            mockServiceCatalogRepository.removeService(BUSINESS_ID, SERVICE_ID)
+        } returns RemoveServiceResult.Removed
     }
 
     @Test
-    fun shouldDeleteOnlyRequestedService() {
+    fun shouldRemoveRequestedService() {
         // Act
         service.deleteServiceCatalog(
-            serviceId = SERVICE_ID_TO_DELETE,
+            serviceId = SERVICE_ID,
             idToken = VALID_TOKEN
         )
 
         // Assert
-        assertEquals(
-            expectedServices,
-            updateFields.captured[Firestore.Fields.ServiceCatalog.SERVICES]
-        )
-
-        assertTrue(
-            updateFields.captured[Firestore.Fields.ServiceCatalog.UPDATED_AT] is FieldValue
-        )
+        verify(exactly = 1) {
+            mockServiceCatalogRepository.removeService(BUSINESS_ID, SERVICE_ID)
+        }
 
         verify(exactly = 1) {
             mockFirebaseTokenService.verifyBusinessOwnership(
                 mockDecodedToken,
                 BUSINESS_ID
             )
-        }
-
-        verify(exactly = 1) {
-            transaction.update(catalogReference, any<Map<String, Any>>())
         }
     }
 
@@ -127,7 +80,7 @@ class ServiceCatalogServiceTest {
         // Act
         val ex = assertFailsWith<ResponseStatusException> {
             service.deleteServiceCatalog(
-                serviceId = SERVICE_ID_TO_DELETE,
+                serviceId = SERVICE_ID,
                 idToken = INVALID_TOKEN
             )
         }
@@ -135,7 +88,7 @@ class ServiceCatalogServiceTest {
         // Assert
         assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
         verify(exactly = 0) {
-            transaction.update(any(), any<Map<String, Any>>())
+            mockServiceCatalogRepository.removeService(any(), any())
         }
     }
 
@@ -152,7 +105,7 @@ class ServiceCatalogServiceTest {
         // Act
         val ex = assertFailsWith<ResponseStatusException> {
             service.deleteServiceCatalog(
-                serviceId = SERVICE_ID_TO_DELETE,
+                serviceId = SERVICE_ID,
                 idToken = VALID_TOKEN
             )
         }
@@ -163,7 +116,7 @@ class ServiceCatalogServiceTest {
             mockFirebaseTokenService.verifyBusinessOwnership(any(), any())
         }
         verify(exactly = 0) {
-            transaction.update(any(), any<Map<String, Any>>())
+            mockServiceCatalogRepository.removeService(any(), any())
         }
     }
 
@@ -183,7 +136,7 @@ class ServiceCatalogServiceTest {
         // Act
         val ex = assertFailsWith<ResponseStatusException> {
             service.deleteServiceCatalog(
-                serviceId = SERVICE_ID_TO_DELETE,
+                serviceId = SERVICE_ID,
                 idToken = VALID_TOKEN
             )
         }
@@ -191,8 +144,109 @@ class ServiceCatalogServiceTest {
         // Assert
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
         verify(exactly = 0) {
-            transaction.update(any(), any<Map<String, Any>>())
+            mockServiceCatalogRepository.removeService(any(), any())
         }
+    }
+
+    @Test
+    fun shouldReturnNotFoundWhenBookableResourceIsMissing() {
+        every {
+            mockBookableResourceRepository.findByUid(USER_ID)
+        } returns null
+
+        val ex = assertFailsWith<ResponseStatusException> {
+            service.deleteServiceCatalog(
+                serviceId = SERVICE_ID,
+                idToken = VALID_TOKEN
+            )
+        }
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+        assertEquals("Bookable resource not found", ex.reason)
+    }
+
+    @Test
+    fun shouldReturnForbiddenWhenBusinessIdIsMissing() {
+        every {
+            mockBookableResourceRepository.findByUid(USER_ID)
+        } returns BookableResource(businessId = null)
+
+        val ex = assertFailsWith<ResponseStatusException> {
+            service.deleteServiceCatalog(
+                serviceId = SERVICE_ID,
+                idToken = VALID_TOKEN
+            )
+        }
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+        assertEquals("Business ID not found", ex.reason)
+    }
+
+    @Test
+    fun shouldReturnNotFoundWhenCatalogIsMissing() {
+        assertRemoveServiceFailure(
+            result = RemoveServiceResult.CatalogNotFound,
+            expectedStatus = HttpStatus.NOT_FOUND,
+            expectedReason = "Service catalog not found"
+        )
+    }
+
+    @Test
+    fun shouldReturnForbiddenWhenCatalogBelongsToAnotherBusiness() {
+        assertRemoveServiceFailure(
+            result = RemoveServiceResult.BusinessMismatch,
+            expectedStatus = HttpStatus.FORBIDDEN,
+            expectedReason = "Service catalog does not belong to this business"
+        )
+    }
+
+    @Test
+    fun shouldReturnNotFoundWhenServiceIsMissing() {
+        assertRemoveServiceFailure(
+            result = RemoveServiceResult.ServiceNotFound,
+            expectedStatus = HttpStatus.NOT_FOUND,
+            expectedReason = "Service not found"
+        )
+    }
+
+    @Test
+    fun shouldReturnInternalServerErrorWhenCatalogIsInvalid() {
+        val cause = IllegalArgumentException("Service catalog is not a list")
+
+        every {
+            mockServiceCatalogRepository.removeService(BUSINESS_ID, SERVICE_ID)
+        } returns RemoveServiceResult.InvalidCatalog(cause)
+
+        val ex = assertFailsWith<ResponseStatusException> {
+            service.deleteServiceCatalog(
+                serviceId = SERVICE_ID,
+                idToken = VALID_TOKEN
+            )
+        }
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.statusCode)
+        assertEquals("Invalid service catalog", ex.reason)
+        assertEquals(cause, ex.cause)
+    }
+
+    private fun assertRemoveServiceFailure(
+        result: RemoveServiceResult,
+        expectedStatus: HttpStatus,
+        expectedReason: String
+    ) {
+        every {
+            mockServiceCatalogRepository.removeService(BUSINESS_ID, SERVICE_ID)
+        } returns result
+
+        val ex = assertFailsWith<ResponseStatusException> {
+            service.deleteServiceCatalog(
+                serviceId = SERVICE_ID,
+                idToken = VALID_TOKEN
+            )
+        }
+
+        assertEquals(expectedStatus, ex.statusCode)
+        assertEquals(expectedReason, ex.reason)
     }
 
     private fun mockAuthentication() {
@@ -214,79 +268,10 @@ class ServiceCatalogServiceTest {
         } just runs
     }
 
-    private fun mockBookableResourceLookup() {
-        every {
-            mockFirestore.collection(Firestore.Collections.BOOKABLE_RESOURCES)
-        } returns resourceCollection
-
-        every {
-            resourceCollection.whereEqualTo(
-                Firestore.Fields.BookableResource.UID,
-                USER_ID
-            )
-        } returns resourceQuery
-
-        every { resourceQuery.limit(1) } returns resourceQuery
-        every { resourceQuery.get() } returns resourceFuture
-        every { resourceFuture.get() } returns resourceSnapshot
-        every { resourceSnapshot.documents } returns listOf(resourceDocument)
-
-        every {
-            resourceDocument.getString(
-                Firestore.Fields.BookableResource.BUSINESS_ID
-            )
-        } returns BUSINESS_ID
-    }
-
-    private fun mockServiceCatalogLookup() {
-        every {
-            mockFirestore.collection(Firestore.Collections.SERVICE_CATALOGS)
-        } returns catalogCollection
-
-        every {
-            catalogCollection.document(BUSINESS_ID)
-        } returns catalogReference
-
-        every { catalogSnapshot.exists() } returns true
-
-        every {
-            catalogSnapshot.getString(
-                Firestore.Fields.ServiceCatalog.BUSINESS_ID
-            )
-        } returns BUSINESS_ID
-
-        every {
-            catalogSnapshot.get(Firestore.Fields.ServiceCatalog.SERVICES)
-        } returns existingServices
-    }
-
-    private fun mockTransaction() {
-        every {
-            transaction.get(catalogReference)
-        } returns catalogFuture
-
-        every { catalogFuture.get() } returns catalogSnapshot
-
-        every {
-            transaction.update(catalogReference, capture(updateFields))
-        } returns transaction
-
-        every { transactionFuture.get() } returns transaction
-
-        every {
-            mockFirestore.runTransaction<Transaction>(any())
-        } answers {
-            firstArg<Transaction.Function<Transaction>>()
-                .updateCallback(transaction)
-
-            transactionFuture
-        }
-    }
-
     private companion object {
         const val BUSINESS_ID = "business-123"
         const val USER_ID = "user-123"
-        const val SERVICE_ID_TO_DELETE = "service-1"
+        const val SERVICE_ID = "service-1"
         const val VALID_TOKEN = "valid-token"
         const val INVALID_TOKEN = "invalid-token"
     }
