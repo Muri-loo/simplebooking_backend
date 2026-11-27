@@ -39,7 +39,9 @@ object BookableResourceMapper {
     private fun Map<String, Any>.string(key: String): String? = this[key] as? String
 
     private fun Map<String, Any>.instant(key: String): Instant? =
-        (this[key] as? Timestamp)?.toDate()?.toInstant()
+        (this[key] as? Timestamp)?.let {
+            Instant.ofEpochSecond(it.seconds, it.nanos.toLong())
+        }
 
     private fun Map<String, Any>.slots(key: String): List<TimeSlot> =
         (this[key] as? List<*>)
