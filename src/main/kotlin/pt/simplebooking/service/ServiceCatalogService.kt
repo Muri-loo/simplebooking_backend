@@ -1,9 +1,9 @@
 
 package pt.simplebooking.service
 
-import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
-import org.springframework.web.server.ResponseStatusException
+import pt.simplebooking.error.BusinessAccessDeniedException
+import pt.simplebooking.error.BusinessResourceNotFoundException
 import pt.simplebooking.repository.BookableResourceRepository
 import pt.simplebooking.repository.RemoveServiceResult
 import pt.simplebooking.repository.ServiceCatalogRepository
@@ -31,14 +31,12 @@ class ServiceCatalogService(
 
     private fun findBusinessId(uid: String): String {
         val resource = bookableResourceRepository.findByUid(uid)
-            ?: throw ResponseStatusException(
-                HttpStatus.NOT_FOUND,
+            ?: throw BusinessResourceNotFoundException(
                 "Bookable resource not found"
             )
 
         return resource.businessId
-            ?: throw ResponseStatusException(
-                HttpStatus.FORBIDDEN,
+            ?: throw BusinessAccessDeniedException(
                 "Business ID not found"
             )
     }
@@ -46,32 +44,25 @@ class ServiceCatalogService(
     private fun removeService(businessId: String, serviceId: String) {
         val failure = serviceCatalogRepository
             .removeService(businessId, serviceId)
-            .toFailure()
+            .toException()
 
         if (failure != null) {
             throw failure
         }
     }
 
-    private fun RemoveServiceResult.toFailure(): ResponseStatusException? =
+    private fun RemoveServiceResult.toException(): RuntimeException? =
         when (this) {
             RemoveServiceResult.Removed -> null
-            RemoveServiceResult.CatalogNotFound -> ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Service catalog not found"
-            )
-            RemoveServiceResult.BusinessMismatch -> ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "Service catalog does not belong to this business"
-            )
-            RemoveServiceResult.ServiceNotFound -> ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Service not found"
-            )
-            is RemoveServiceResult.InvalidCatalog -> ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Invalid service catalog",
-                cause
-            )
+            RemoveServiceResult.CatalogNotFound ->
+                BusinessResourceNotFoundException("Service catalog not found")
+            RemoveServiceResult.BusinessMismatch ->
+                BusinessAccessDeniedException(
+                    "Service catalog does not belong to this business"
+                )
+            RemoveServiceResult.ServiceNotFound ->
+                BusinessResourceNotFoundException("Service not found")
+            is RemoveServiceResult.InvalidCatalog ->
+                IllegalStateException("Invalid service catalog", cause)
         }
 }

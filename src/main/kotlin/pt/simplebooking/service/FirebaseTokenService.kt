@@ -3,9 +3,10 @@ package pt.simplebooking.service
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseToken
-import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
-import org.springframework.web.server.ResponseStatusException
+import pt.simplebooking.error.AuthenticationFailedException
+import pt.simplebooking.error.BusinessAccessDeniedException
+import pt.simplebooking.error.InvalidRequestException
 
 @Service
 class FirebaseTokenService(
@@ -14,8 +15,7 @@ class FirebaseTokenService(
 
     fun extractBearerToken(authHeader: String): String {
         if (!authHeader.startsWith(BEARER_PREFIX, ignoreCase = true)) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
+            throw InvalidRequestException(
                 "Authorization header must use the 'Bearer' scheme"
             )
         }
@@ -23,8 +23,7 @@ class FirebaseTokenService(
         val idToken = authHeader.substring(BEARER_PREFIX.length).trim()
 
         if (idToken.isEmpty()) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
+            throw InvalidRequestException(
                 "Authorization header is missing the bearer token"
             )
         }
@@ -42,9 +41,8 @@ class FirebaseTokenService(
         }
     }
 
-    private fun invalidToken(cause: Exception): ResponseStatusException {
-        return ResponseStatusException(
-            HttpStatus.UNAUTHORIZED,
+    private fun invalidToken(cause: Exception): AuthenticationFailedException {
+        return AuthenticationFailedException(
             "Invalid Firebase ID token",
             cause
         )
@@ -54,8 +52,7 @@ class FirebaseTokenService(
         val isAdmin = decodedToken.claims["admin"] as? Boolean ?: false
 
         if (isAdmin.not()) {
-            throw ResponseStatusException(
-                HttpStatus.FORBIDDEN,
+            throw BusinessAccessDeniedException(
                 "User does not have admin privileges"
             )
         }
@@ -68,8 +65,7 @@ class FirebaseTokenService(
         val tokenBusinessId = decodedToken.claims["businessId"] as? String
 
         if (tokenBusinessId != businessId) {
-            throw ResponseStatusException(
-                HttpStatus.FORBIDDEN,
+            throw BusinessAccessDeniedException(
                 "User does not own this business"
             )
         }
