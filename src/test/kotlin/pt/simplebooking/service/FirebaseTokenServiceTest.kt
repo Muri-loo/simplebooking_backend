@@ -5,8 +5,8 @@ import com.google.firebase.auth.FirebaseToken
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
-import org.springframework.http.HttpStatus
-import org.springframework.web.server.ResponseStatusException
+import pt.simplebooking.error.BusinessAccessDeniedException
+import pt.simplebooking.error.InvalidRequestException
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
@@ -31,32 +31,29 @@ class FirebaseTokenServiceTest {
 
     @Test
     fun shouldRejectAHeaderWithoutTheBearerScheme() {
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<InvalidRequestException> {
             service.extractBearerToken("Basic abc.def.ghi")
         }
 
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-        assertEquals("Authorization header must use the 'Bearer' scheme", ex.reason)
+        assertEquals("Authorization header must use the 'Bearer' scheme", ex.message)
     }
 
     @Test
     fun shouldRejectABearerSchemeWithoutAToken() {
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<InvalidRequestException> {
             service.extractBearerToken("Bearer")
         }
 
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-        assertEquals("Authorization header must use the 'Bearer' scheme", ex.reason)
+        assertEquals("Authorization header must use the 'Bearer' scheme", ex.message)
     }
 
     @Test
     fun shouldRejectAnEmptyBearerToken() {
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<InvalidRequestException> {
             service.extractBearerToken("Bearer    ")
         }
 
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-        assertEquals("Authorization header is missing the bearer token", ex.reason)
+        assertEquals("Authorization header is missing the bearer token", ex.message)
     }
 
     @Test
@@ -66,32 +63,29 @@ class FirebaseTokenServiceTest {
 
     @Test
     fun shouldRejectATokenWithoutTheAdminClaim() {
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<BusinessAccessDeniedException> {
             service.verifyAdminRole(tokenWithClaims(emptyMap()))
         }
 
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-        assertEquals("User does not have admin privileges", ex.reason)
+        assertEquals("User does not have admin privileges", ex.message)
     }
 
     @Test
     fun shouldRejectATokenWithAFalseAdminClaim() {
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<BusinessAccessDeniedException> {
             service.verifyAdminRole(tokenWithClaims(mapOf("admin" to false)))
         }
 
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-        assertEquals("User does not have admin privileges", ex.reason)
+        assertEquals("User does not have admin privileges", ex.message)
     }
 
     @Test
     fun shouldRejectATokenWithANonBooleanAdminClaim() {
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<BusinessAccessDeniedException> {
             service.verifyAdminRole(tokenWithClaims(mapOf("admin" to "true")))
         }
 
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-        assertEquals("User does not have admin privileges", ex.reason)
+        assertEquals("User does not have admin privileges", ex.message)
     }
 
     @Test
@@ -104,25 +98,23 @@ class FirebaseTokenServiceTest {
 
     @Test
     fun shouldRejectAMismatchedBusinessOwnership() {
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<BusinessAccessDeniedException> {
             service.verifyBusinessOwnership(
                 tokenWithClaims(mapOf("businessId" to "business-456")),
                 "business-123"
             )
         }
 
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-        assertEquals("User does not own this business", ex.reason)
+        assertEquals("User does not own this business", ex.message)
     }
 
     @Test
     fun shouldRejectATokenWithoutABusinessIdClaim() {
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<BusinessAccessDeniedException> {
             service.verifyBusinessOwnership(tokenWithClaims(emptyMap()), "business-123")
         }
 
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-        assertEquals("User does not own this business", ex.reason)
+        assertEquals("User does not own this business", ex.message)
     }
 
     private fun tokenWithClaims(claims: Map<String, Any>): FirebaseToken {

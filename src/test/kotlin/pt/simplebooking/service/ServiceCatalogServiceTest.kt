@@ -9,12 +9,15 @@ import io.mockk.runs
 import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.http.HttpStatus
-import org.springframework.web.server.ResponseStatusException
+import pt.simplebooking.error.AuthenticationFailedException
+import pt.simplebooking.error.BusinessAccessDeniedException
+import pt.simplebooking.error.BusinessException
+import pt.simplebooking.error.BusinessResourceNotFoundException
 import pt.simplebooking.models.bo.BookableResource
 import pt.simplebooking.repository.BookableResourceRepository
 import pt.simplebooking.repository.RemoveServiceResult
 import pt.simplebooking.repository.ServiceCatalogRepository
+import kotlin.reflect.KClass
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
@@ -72,13 +75,10 @@ class ServiceCatalogServiceTest {
         // Arrange
         every {
             mockFirebaseTokenService.verifyToken(INVALID_TOKEN)
-        } throws ResponseStatusException(
-            HttpStatus.UNAUTHORIZED,
-            "Invalid Firebase ID token"
-        )
+        } throws AuthenticationFailedException("Invalid Firebase ID token")
 
         // Act
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<AuthenticationFailedException> {
             service.deleteServiceCatalog(
                 serviceId = SERVICE_ID,
                 idToken = INVALID_TOKEN
@@ -86,7 +86,7 @@ class ServiceCatalogServiceTest {
         }
 
         // Assert
-        assertEquals(HttpStatus.UNAUTHORIZED, ex.statusCode)
+        assertEquals("Invalid Firebase ID token", ex.message)
         verify(exactly = 0) {
             mockServiceCatalogRepository.removeService(any(), any())
         }
@@ -97,13 +97,12 @@ class ServiceCatalogServiceTest {
         // Arrange
         every {
             mockFirebaseTokenService.verifyAdminRole(mockDecodedToken)
-        } throws ResponseStatusException(
-            HttpStatus.FORBIDDEN,
+        } throws BusinessAccessDeniedException(
             "User does not have admin privileges"
         )
 
         // Act
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<BusinessAccessDeniedException> {
             service.deleteServiceCatalog(
                 serviceId = SERVICE_ID,
                 idToken = VALID_TOKEN
@@ -111,7 +110,7 @@ class ServiceCatalogServiceTest {
         }
 
         // Assert
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+        assertEquals("User does not have admin privileges", ex.message)
         verify(exactly = 0) {
             mockFirebaseTokenService.verifyBusinessOwnership(any(), any())
         }
@@ -128,13 +127,12 @@ class ServiceCatalogServiceTest {
                 mockDecodedToken,
                 BUSINESS_ID
             )
-        } throws ResponseStatusException(
-            HttpStatus.FORBIDDEN,
+        } throws BusinessAccessDeniedException(
             "User does not own this business"
         )
 
         // Act
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<BusinessAccessDeniedException> {
             service.deleteServiceCatalog(
                 serviceId = SERVICE_ID,
                 idToken = VALID_TOKEN
@@ -142,7 +140,7 @@ class ServiceCatalogServiceTest {
         }
 
         // Assert
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+        assertEquals("User does not own this business", ex.message)
         verify(exactly = 0) {
             mockServiceCatalogRepository.removeService(any(), any())
         }
@@ -154,15 +152,14 @@ class ServiceCatalogServiceTest {
             mockBookableResourceRepository.findByUid(USER_ID)
         } returns null
 
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<BusinessResourceNotFoundException> {
             service.deleteServiceCatalog(
                 serviceId = SERVICE_ID,
                 idToken = VALID_TOKEN
             )
         }
 
-        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
-        assertEquals("Bookable resource not found", ex.reason)
+        assertEquals("Bookable resource not found", ex.message)
     }
 
     @Test
@@ -171,22 +168,21 @@ class ServiceCatalogServiceTest {
             mockBookableResourceRepository.findByUid(USER_ID)
         } returns BookableResource(businessId = null)
 
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<BusinessAccessDeniedException> {
             service.deleteServiceCatalog(
                 serviceId = SERVICE_ID,
                 idToken = VALID_TOKEN
             )
         }
 
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-        assertEquals("Business ID not found", ex.reason)
+        assertEquals("Business ID not found", ex.message)
     }
 
     @Test
     fun shouldReturnNotFoundWhenCatalogIsMissing() {
         assertRemoveServiceFailure(
             result = RemoveServiceResult.CatalogNotFound,
-            expectedStatus = HttpStatus.NOT_FOUND,
+            expectedType = BusinessResourceNotFoundException::class,
             expectedReason = "Service catalog not found"
         )
     }
@@ -195,7 +191,7 @@ class ServiceCatalogServiceTest {
     fun shouldReturnForbiddenWhenCatalogBelongsToAnotherBusiness() {
         assertRemoveServiceFailure(
             result = RemoveServiceResult.BusinessMismatch,
-            expectedStatus = HttpStatus.FORBIDDEN,
+            expectedType = BusinessAccessDeniedException::class,
             expectedReason = "Service catalog does not belong to this business"
         )
     }
@@ -204,7 +200,7 @@ class ServiceCatalogServiceTest {
     fun shouldReturnNotFoundWhenServiceIsMissing() {
         assertRemoveServiceFailure(
             result = RemoveServiceResult.ServiceNotFound,
-            expectedStatus = HttpStatus.NOT_FOUND,
+            expectedType = BusinessResourceNotFoundException::class,
             expectedReason = "Service not found"
         )
     }
@@ -217,36 +213,34 @@ class ServiceCatalogServiceTest {
             mockServiceCatalogRepository.removeService(BUSINESS_ID, SERVICE_ID)
         } returns RemoveServiceResult.InvalidCatalog(cause)
 
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith<IllegalStateException> {
             service.deleteServiceCatalog(
                 serviceId = SERVICE_ID,
                 idToken = VALID_TOKEN
             )
         }
 
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.statusCode)
-        assertEquals("Invalid service catalog", ex.reason)
+        assertEquals("Invalid service catalog", ex.message)
         assertEquals(cause, ex.cause)
     }
 
     private fun assertRemoveServiceFailure(
         result: RemoveServiceResult,
-        expectedStatus: HttpStatus,
+        expectedType: KClass<out BusinessException>,
         expectedReason: String
     ) {
         every {
             mockServiceCatalogRepository.removeService(BUSINESS_ID, SERVICE_ID)
         } returns result
 
-        val ex = assertFailsWith<ResponseStatusException> {
+        val ex = assertFailsWith(expectedType) {
             service.deleteServiceCatalog(
                 serviceId = SERVICE_ID,
                 idToken = VALID_TOKEN
             )
         }
 
-        assertEquals(expectedStatus, ex.statusCode)
-        assertEquals(expectedReason, ex.reason)
+        assertEquals(expectedReason, ex.message)
     }
 
     private fun mockAuthentication() {

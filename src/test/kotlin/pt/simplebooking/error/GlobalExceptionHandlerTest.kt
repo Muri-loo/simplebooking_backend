@@ -53,6 +53,46 @@ class GlobalExceptionHandlerTest {
             .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
             .andExpect(jsonPath("$.trace").doesNotExist())
     }
+
+    @Test
+    fun shouldMapResourceNotFoundToNotFound() {
+        mockMvc.perform(get("/domain-not-found"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+            .andExpect(jsonPath("$.message").value("Service not found"))
+    }
+
+    @Test
+    fun shouldMapAccessDeniedToForbidden() {
+        mockMvc.perform(get("/domain-forbidden"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.status").value(HttpStatus.FORBIDDEN.value()))
+            .andExpect(jsonPath("$.message").value("User does not own this business"))
+    }
+
+    @Test
+    fun shouldMapAuthenticationFailureToUnauthorized() {
+        mockMvc.perform(get("/domain-unauthorized"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.status").value(HttpStatus.UNAUTHORIZED.value()))
+            .andExpect(jsonPath("$.message").value("Invalid Firebase ID token"))
+    }
+
+    @Test
+    fun shouldMapInvalidRequestToBadRequest() {
+        mockMvc.perform(get("/domain-bad-request"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.value()))
+            .andExpect(jsonPath("$.message").value("Invalid request"))
+    }
+
+    @Test
+    fun shouldUnwrapWrappedDomainException() {
+        mockMvc.perform(get("/wrapped-domain-not-found"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.status").value(HttpStatus.NOT_FOUND.value()))
+            .andExpect(jsonPath("$.message").value("Service not found"))
+    }
 }
 
 @RestController
@@ -73,5 +113,32 @@ class ThrowingController {
     @GetMapping("/requires-header")
     fun requiresHeader(@RequestHeader("Authorization") authorization: String): String {
         return authorization
+    }
+
+    @GetMapping("/domain-not-found")
+    fun domainNotFound(): String {
+        throw BusinessResourceNotFoundException("Service not found")
+    }
+
+    @GetMapping("/domain-forbidden")
+    fun domainForbidden(): String {
+        throw BusinessAccessDeniedException("User does not own this business")
+    }
+
+    @GetMapping("/domain-unauthorized")
+    fun domainUnauthorized(): String {
+        throw AuthenticationFailedException("Invalid Firebase ID token")
+    }
+
+    @GetMapping("/domain-bad-request")
+    fun domainBadRequest(): String {
+        throw InvalidRequestException("Invalid request")
+    }
+
+    @GetMapping("/wrapped-domain-not-found")
+    fun wrappedDomainNotFound(): String {
+        throw ExecutionException(
+            BusinessResourceNotFoundException("Service not found")
+        )
     }
 }

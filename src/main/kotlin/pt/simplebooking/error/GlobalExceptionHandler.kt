@@ -103,6 +103,10 @@ class GlobalExceptionHandler {
 
     private fun resolveStatus(cause: Throwable): HttpStatus {
         return when (cause) {
+            is BusinessResourceNotFoundException -> HttpStatus.NOT_FOUND
+            is BusinessAccessDeniedException -> HttpStatus.FORBIDDEN
+            is AuthenticationFailedException -> HttpStatus.UNAUTHORIZED
+            is InvalidRequestException -> HttpStatus.BAD_REQUEST
             is ResponseStatusException -> toHttpStatus(cause.statusCode)
             is ErrorResponse -> toHttpStatus(cause.statusCode)
             is HttpMessageNotReadableException -> HttpStatus.BAD_REQUEST
