@@ -16,6 +16,7 @@ class CorsConfig(
             .allowedOrigins(*parseAllowedOrigins().toTypedArray())
             .allowedMethods(*ALLOWED_METHODS)
             .allowedHeaders("*")
+            .exposedHeaders(TraceIdFilter.TRACE_HEADER)
             .maxAge(MAX_AGE_SECONDS)
     }
 

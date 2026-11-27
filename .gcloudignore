@@ -1,0 +1,10 @@
+# Ficheiros que nunca devem ir para o Cloud Build / imagem
+.env
+.env.*
+!.env.example
+.git/
+.gradle/
+build/
+.idea/
+.kotlin/
+HELP.md
