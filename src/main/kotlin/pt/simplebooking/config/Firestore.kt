@@ -48,6 +48,8 @@ object Firestore {
             const val THURSDAY = "thursday"
             const val FRIDAY = "friday"
             const val SATURDAY = "saturday"
+            const val SLOT_START = "start"
+            const val SLOT_END = "end"
         }
 
         object Booking {
