@@ -30,7 +30,7 @@ import pt.simplebooking.config.TraceIdFilter
 @SpringBootTest(
     properties = [
         "app.cors.allowed-origins=http://localhost:5173",
-        "app.firebase.project-id=test-project",
+        "app.firebase.project-id=simplebooking-ts",
         "app.logging.trace-project-id=test-project"
     ]
 )

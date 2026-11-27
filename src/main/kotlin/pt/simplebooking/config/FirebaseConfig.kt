@@ -19,15 +19,18 @@ class FirebaseConfig(
     private val logger = AppLogger.getLogger(FirebaseConfig::class.java)
 
     init {
-        if (projectId.isBlank()) {
-            throw IllegalStateException(
-                "FIREBASE_PROJECT_ID is required. Set it to the Firebase project.")
+        require(projectId.isNotBlank()) {
+            "FIREBASE_PROJECT_ID is required."
+        }
+
+        require(environmentLabel(projectId) != "UNKNOWN") {
+            "Unknown Firebase project ID: $projectId"
         }
     }
 
     @Bean(destroyMethod = "delete")
     fun firebaseApp(): FirebaseApp {
-        logger.info("Firebase project ID: {}", projectId)
+        logger.info("Firebase environment: {}", environmentLabel(projectId))
         val options = FirebaseOptions.builder()
             .setCredentials(GoogleCredentials.getApplicationDefault())
             .setProjectId(projectId)
@@ -44,5 +47,16 @@ class FirebaseConfig(
     @Bean
     fun firestore(firebaseApp: FirebaseApp): Firestore {
         return FirestoreClient.getFirestore(firebaseApp)
+    }
+
+    companion object {
+        private const val PRODUCTION_PROJECT_ID = "barbershopbooking-ff17d"
+        private const val TEST_PROJECT_ID = "simplebooking-ts"
+
+        fun environmentLabel(projectId: String): String = when (projectId) {
+            PRODUCTION_PROJECT_ID -> "PRODUCTION"
+            TEST_PROJECT_ID -> "TEST"
+            else -> "UNKNOWN"
+        }
     }
 }
