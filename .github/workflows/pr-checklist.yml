@@ -1,0 +1,47 @@
+name: PR checklist
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main, develop]
+jobs:
+  checklist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR description against the template
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          failed=0
+
+          types_section=$(printf '%s\n' "$BODY" | sed -n '/^### Types of changes/,/^### Please check if the PR fulfills these requirements/p')
+          if [ -z "$types_section" ]; then
+            echo "Missing the '### Types of changes' section. Use the PR template."
+            failed=1
+          else
+            types=$(printf '%s\n' "$types_section" | grep -cE '^\s*- \[[xX]\]' || true)
+            if [ "$types" -lt 1 ]; then
+              echo "Select at least one type of change."
+              failed=1
+            fi
+          fi
+
+          requirements_section=$(printf '%s\n' "$BODY" | sed -n '/^### Please check if the PR fulfills these requirements/,/^### Evidence/p')
+          if [ -z "$requirements_section" ]; then
+            echo "Missing the '### Please check if the PR fulfills these requirements' section. Use the PR template."
+            failed=1
+          else
+            items=$(printf '%s\n' "$requirements_section" | grep -cE '^\s*- \[[xX ]\]' || true)
+            if [ "$items" -lt 1 ]; then
+              echo "The requirements section has no checklist items."
+              failed=1
+            fi
+
+            unchecked=$(printf '%s\n' "$requirements_section" | grep -E '^\s*- \[ \]' || true)
+            if [ -n "$unchecked" ]; then
+              echo "Unticked checklist items:"
+              echo "$unchecked"
+              failed=1
+            fi
+          fi
+
+          exit $failed
