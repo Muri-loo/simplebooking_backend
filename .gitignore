@@ -38,3 +38,8 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Local env ###
+.env
+.env.local
+!.env.example

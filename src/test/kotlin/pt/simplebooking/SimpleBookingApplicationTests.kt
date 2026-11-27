@@ -28,7 +28,11 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import pt.simplebooking.config.TraceIdFilter
 
 @SpringBootTest(
-    properties = ["app.cors.allowed-origins=http://localhost:5173", "app.logging.trace-project-id=test-project"]
+    properties = [
+        "app.cors.allowed-origins=http://localhost:5173",
+        "app.firebase.project-id=test-project",
+        "app.logging.trace-project-id=test-project"
+    ]
 )
 @AutoConfigureMockMvc
 @ExtendWith(OutputCaptureExtension::class)

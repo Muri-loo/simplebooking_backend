@@ -18,6 +18,13 @@ class FirebaseConfig(
 
     private val logger = AppLogger.getLogger(FirebaseConfig::class.java)
 
+    init {
+        if (projectId.isBlank()) {
+            throw IllegalStateException(
+                "FIREBASE_PROJECT_ID is required. Set it to the Firebase project.")
+        }
+    }
+
     @Bean(destroyMethod = "delete")
     fun firebaseApp(): FirebaseApp {
         logger.info("Firebase project ID: {}", projectId)
