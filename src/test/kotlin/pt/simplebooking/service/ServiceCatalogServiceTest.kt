@@ -1,14 +1,12 @@
-
 package pt.simplebooking.service
 
 import com.google.firebase.auth.FirebaseToken
-import io.mockk.every
-import io.mockk.just
-import io.mockk.mockk
-import io.mockk.runs
-import io.mockk.verify
+import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import pt.simplebooking.error.AuthenticationFailedException
 import pt.simplebooking.error.BusinessAccessDeniedException
 import pt.simplebooking.error.BusinessException
@@ -20,7 +18,9 @@ import pt.simplebooking.repository.ServiceCatalogRepository
 import kotlin.reflect.KClass
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
+@ExtendWith(OutputCaptureExtension::class)
 class ServiceCatalogServiceTest {
 
     private lateinit var service: ServiceCatalogService
@@ -68,6 +68,29 @@ class ServiceCatalogServiceTest {
                 BUSINESS_ID
             )
         }
+    }
+
+    @Test
+    fun shouldLogOnlyStartAndOutcomeAtInfo(output: CapturedOutput) {
+        every {
+            mockServiceCatalogRepository.removeService(BUSINESS_ID, FLOW_SERVICE_ID)
+        } returns RemoveServiceResult.Removed
+
+        val capturedBefore = output.all.length
+        service.deleteServiceCatalog(serviceId = FLOW_SERVICE_ID, idToken = VALID_TOKEN)
+        val flow = output.all.substring(capturedBefore)
+
+        val started = flow.indexOf("Starting service deletion: serviceId=$FLOW_SERVICE_ID")
+        val finished = flow.indexOf(
+            "Service deleted: businessId=$BUSINESS_ID, serviceId=$FLOW_SERVICE_ID"
+        )
+
+        assertTrue(started >= 0, "Missing start log line")
+        assertTrue(finished > started, "Missing or out-of-order completion log line")
+        assertTrue(
+            flow.lines().none { it.contains("Deleting service from Firestore") },
+            "Debug detail must not be logged at INFO level"
+        )
     }
 
     @Test
@@ -266,6 +289,7 @@ class ServiceCatalogServiceTest {
         const val BUSINESS_ID = "business-123"
         const val USER_ID = "user-123"
         const val SERVICE_ID = "service-1"
+        const val FLOW_SERVICE_ID = "service-flow-1"
         const val VALID_TOKEN = "valid-token"
         const val INVALID_TOKEN = "invalid-token"
     }
