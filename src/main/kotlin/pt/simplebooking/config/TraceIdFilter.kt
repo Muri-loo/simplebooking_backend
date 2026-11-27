@@ -48,9 +48,16 @@ class TraceIdFilter(
         return if (traceId.isEmpty()) {
             null
         } else {
-            TraceContext(traceId, spanId.ifEmpty { null })
+            TraceContext(traceId, toHexSpanId(spanId))
         }
     }
+
+    /**
+     * X-Cloud-Trace-Context carries the span as an unsigned decimal number, while Cloud Logging
+     * expects the 16-character hexadecimal form used by the Trace API.
+     */
+    private fun toHexSpanId(decimalSpanId: String): String? =
+        decimalSpanId.toULongOrNull()?.toString(SPAN_ID_RADIX)?.padStart(SPAN_ID_LENGTH, '0')
 
     private fun parseTraceparent(header: String?): TraceContext? {
         val parts = header?.split('-')
@@ -75,5 +82,7 @@ class TraceIdFilter(
         private const val CLOUD_TRACE_HEADER = "X-Cloud-Trace-Context"
         private const val TRACEPARENT_HEADER = "traceparent"
         private const val TRACEPARENT_MIN_PARTS = 4
+        private const val SPAN_ID_LENGTH = 16
+        private const val SPAN_ID_RADIX = 16
     }
 }

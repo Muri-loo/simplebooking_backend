@@ -83,21 +83,21 @@ class SimpleBookingApplicationTests {
     @Test
     fun shouldExposeTraceIdFromCloudTraceContext() {
         mockMvc.perform(
-            get("/unknown").header("X-Cloud-Trace-Context", "$TRACE_ID/$SPAN_ID;o=1")
+            get("/unknown").header("X-Cloud-Trace-Context", "$TRACE_ID/$SPAN_ID_DECIMAL;o=1")
         ).andExpect(header().string("X-Trace-Id", TRACE_ID))
     }
 
     @Test
     fun shouldExposeTraceIdFromTraceparent() {
         mockMvc.perform(
-            get("/unknown").header("traceparent", "00-$TRACE_ID-$SPAN_ID-01")
+            get("/unknown").header("traceparent", "00-$TRACE_ID-$SPAN_ID_HEX-01")
         ).andExpect(header().string("X-Trace-Id", TRACE_ID))
     }
 
     @Test
     fun shouldPutGcpTraceFieldsInMdcForTheWholeRequest() {
         val request = MockHttpServletRequest().apply {
-            addHeader("X-Cloud-Trace-Context", "$TRACE_ID/$SPAN_ID;o=1")
+            addHeader("X-Cloud-Trace-Context", "$TRACE_ID/$SPAN_ID_DECIMAL;o=1")
         }
         val response = MockHttpServletResponse()
         var traceInMdc: String? = null
@@ -111,9 +111,23 @@ class SimpleBookingApplicationTests {
         }
 
         assertEquals("projects/test-project/traces/$TRACE_ID", traceInMdc)
-        assertEquals(SPAN_ID, spanInMdc)
+        assertEquals(SPAN_ID_HEX, spanInMdc)
         assertNull(MDC.get(TraceIdFilter.TRACE_MDC_KEY))
         assertNull(MDC.get(TraceIdFilter.SPAN_MDC_KEY))
+    }
+
+    @Test
+    fun shouldZeroPadShortCloudSpanIds() {
+        val request = MockHttpServletRequest("GET", "/unknown").apply {
+            addHeader("X-Cloud-Trace-Context", "$TRACE_ID/1;o=1")
+        }
+        var spanInMdc: String? = null
+
+        TraceIdFilter("test-project").doFilter(request, MockHttpServletResponse()) { _, _ ->
+            spanInMdc = MDC.get(TraceIdFilter.SPAN_MDC_KEY)
+        }
+
+        assertEquals("0000000000000001", spanInMdc)
     }
 
     @Test
@@ -131,6 +145,7 @@ class SimpleBookingApplicationTests {
     private companion object {
         const val ALLOWED_ORIGIN = "http://localhost:5173"
         const val TRACE_ID = "a3f8762b574c508fc1739c88caf270f1"
-        const val SPAN_ID = "c71fd6c8ce87fd22"
+        const val SPAN_ID_DECIMAL = "14348423095772511522"
+        const val SPAN_ID_HEX = "c71fd6c8ce87fd22"
     }
 }
