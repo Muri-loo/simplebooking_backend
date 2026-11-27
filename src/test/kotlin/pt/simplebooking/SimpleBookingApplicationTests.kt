@@ -71,6 +71,6 @@ class SimpleBookingApplicationTests {
     }
 
     private companion object {
-        const val ALLOWED_ORIGIN = "https://ts.simplebooking.pt"
+        const val ALLOWED_ORIGIN = "http://localhost:5173"
     }
 }
