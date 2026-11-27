@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import pt.simplebooking.config.Firestore
+import pt.simplebooking.mapper.ServiceItemMapper
+import pt.simplebooking.models.bo.ServiceItem
 
 @Service
 class ServiceCatalogService(
@@ -73,7 +75,7 @@ class ServiceCatalogService(
             transaction.update(
                 catalogRef,
                 mapOf(
-                    Firestore.Fields.ServiceCatalog.SERVICES to updatedServices,
+                    Firestore.Fields.ServiceCatalog.SERVICES to updatedServices.map(ServiceItemMapper::toMap),
                     Firestore.Fields.ServiceCatalog.UPDATED_AT to FieldValue.serverTimestamp()
                 )
             )
@@ -105,24 +107,25 @@ class ServiceCatalogService(
 
     private fun getServices(
         catalog: com.google.cloud.firestore.DocumentSnapshot
-    ): List<Map<String, Any>> {
-        @Suppress("UNCHECKED_CAST")
-        return catalog.get(
-            Firestore.Fields.ServiceCatalog.SERVICES
-        ) as? List<Map<String, Any>>
-            ?: throw ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Invalid service catalog"
+    ): List<ServiceItem> {
+        return try {
+            ServiceItemMapper.fromRaw(
+                catalog.get(Firestore.Fields.ServiceCatalog.SERVICES)
             )
+        } catch (ex: IllegalArgumentException) {
+            throw ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Invalid service catalog",
+                ex
+            )
+        }
     }
 
     private fun removeService(
-        services: List<Map<String, Any>>,
+        services: List<ServiceItem>,
         serviceId: String
-    ): List<Map<String, Any>> {
-        val updatedServices = services.filterNot {
-            it[Firestore.Fields.Service.ID] == serviceId
-        }
+    ): List<ServiceItem> {
+        val updatedServices = services.filterNot { it.id == serviceId }
 
         if (updatedServices.size == services.size) {
             throw ResponseStatusException(
